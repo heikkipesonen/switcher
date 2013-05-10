@@ -151,9 +151,11 @@ $.fn.extend({
 		this.on('mousedown',function(e){
 			e.stopPropagation();
 			e.preventDefault();
-
 			_lastE = false;
+			_dummy.stop();
+			_totalDistance = 0;
 		});
+
 		this.hammer().on('touchstart',function(e){
 			e.stopPropagation();
 			e.preventDefault();
@@ -162,7 +164,7 @@ $.fn.extend({
 			_totalDistance = 0;
 		});
 
-		this.hammer({drag_max_touches:10}).on('drag',function(e){
+		this.hammer({drag_max_touches:_touchesToMove}).on('drag',function(e){
 			e.stopPropagation();
 			e.preventDefault();
 			e.gesture.preventDefault();
@@ -182,9 +184,6 @@ $.fn.extend({
 		});
 
 		this.on('mouseup',function(e){
-			e.stopPropagation();
-			e.preventDefault();
-
 			_checkPosition();
 		});
 
@@ -193,11 +192,6 @@ $.fn.extend({
 			e.preventDefault();
 
 			_checkPosition();
-		});
-
-
-		this.hammer().on('tap',function(e){
-			console.log(e);
 		});
 
 		// move to next item
@@ -272,11 +266,13 @@ $.fn.extend({
 				var index = parseInt( i ) + _offset - 2;	
 				panes[i].attr('scroll-index', index);
 				panes[i].html(_getListItem(index));
+				panes[i].attr('list-index', _getListItemIndex(_getListItem(index)));
 			}
 
 		}
 
 		function _getRightPane(){
+			
 			var mx = -Infinity;
 			var p = false;
 			for (var i in _panes){
@@ -351,8 +347,9 @@ $.fn.extend({
 			var rp = _getRightPane(),
 				lp = _getLeftPane();
 
-			rp.attr('scroll-index', _offset+2).html(_getListItem(_offset+2));
-			lp.attr('scroll-index', _offset-2).html(_getListItem(_offset-2));
+			
+			rp.attr('scroll-index', _offset+2).html(_getListItem(_offset+2)).attr('list-index', _getListItemIndex(_getListItem(_offset+2)));
+			lp.attr('scroll-index', _offset-2).html(_getListItem(_offset-2)).attr('list-index', _getListItemIndex(_getListItem(_offset-2)));
 		}
 
 		function _getListItem(index){
