@@ -21,7 +21,10 @@ $.fn.extend({
 	},
 	switcher:function(opts){
 /*
-			infinite pane scroller by persereikä
+			infinite pane based scroller
+			Heikki Pesonen
+			Metropolia School of applied sciences
+			2013
 
 			switches between five divs,
 
