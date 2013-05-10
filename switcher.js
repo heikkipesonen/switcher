@@ -62,8 +62,8 @@ $.fn.extend({
 	
 			tension: movement required to move the content to overcome the springback function,
 					ratio of an paneWidth.
-					tension value of 0.1 would require 40px move on a 400px wide container
-					default 0.3
+					tension value of 0.5 would require 200px move on a 400px wide container
+					default 0.6 must be over 0.5
 					if less than tension*width, element is sprung back into its original position.
 
 			touches: required number of touches (fingers) to move the elements,
@@ -103,8 +103,10 @@ $.fn.extend({
 			_offset = 0,
 			_items = opts.items || false,			
 			_tension = opts.tension || 0.2,
-			_dummy = $('<div id="dummy" />')
+			_dummy = $('<div id="dummy" />'),
 			me = this;
+
+			if (_tension < 0.5) _tension = 0.5;
 
 		_dummy.css({
 				'display':'none',
@@ -154,8 +156,7 @@ $.fn.extend({
 			e.preventDefault();
 			_lastE = false;
 			_dummy.stop();
-			_speed = 0;
-			_dist = 0;
+			_totalDistance = 0;
 		});
 
 		this.hammer({drag_max_touches:10}).on('drag',function(e){
@@ -171,6 +172,7 @@ $.fn.extend({
 					x = x-_lastE.gesture.deltaX;
 					_scroll(x);
 				}
+				_totalDistance += x;
 				_direction = e.gesture.deltaX;
 				_lastE = e;	
 			}
@@ -226,6 +228,7 @@ $.fn.extend({
 		function _checkPosition(){
 			var c = _getNearestOfCenter(),
 				offset = _getOffsetToCenter(c);
+			//offset = _totalDistance;
 						
 			// if tension is exceeded, pane is switched
 			if (Math.abs(offset) >= _paneWidth*_tension){				
@@ -290,13 +293,7 @@ $.fn.extend({
 		}
 
 		function _getCenterPane(){
-			var a = _getPanesByPosition();
-
-			if (a.length == 5){
-				return a[2];
-			} else if (a.length == 3){
-				return a[1];
-			}
+			return _getPanesByPosition()[2];
 		}
 
 		function _getPanesByPosition(){
