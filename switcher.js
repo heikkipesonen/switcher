@@ -34,7 +34,7 @@ $.fn.extend({
 /*
 			infinite scroller
 			Heikki Pesonen
-			Metropolia School of applied sciences
+			Metropolia university of applied sciences
 			2013
 
 			rotates between five divs in a loop, infinite number
@@ -43,6 +43,9 @@ $.fn.extend({
 			When items-list runs out, the scroller will start scrolling
 			from the beginning.
 
+		
+		!!	uses jquery.hammer for touch
+			https://github.com/EightMedia/hammer.js
 
 		callbacks:
 
