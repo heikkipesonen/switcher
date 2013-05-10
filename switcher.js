@@ -1,3 +1,63 @@
+/*
+			infinite scroller
+			Heikki Pesonen
+			Metropolia university of applied sciences / ereading
+			2013
+
+			rotates between five divs in a loop, infinite number
+			of items can be displayed. 
+
+			When items-list runs out, the scroller will start scrolling
+			from the beginning.
+
+		
+		!!	uses jquery.hammer for touch
+			https://github.com/EightMedia/hammer.js
+
+		callbacks:
+
+			onchange: fired each time the middle pane changes
+			dragend: when draggin of the scroller has ended
+
+			the middle (active) pane is returned as "this" for easy access
+	
+		options:
+			items: set of items to be put inside each pane,
+				for example a div.. or an image.. 
+
+				html element
+	
+			tension: movement required to move the content to overcome the springback function,
+					ratio of an paneWidth.
+					tension value of 0.5 would require 200px move on a 400px wide container
+					default 0.6 must be over 0.5
+					if less than tension*width, element is sprung back into its original position.
+
+			touches: required number of touches (fingers) to move the scroller,
+					default = 1
+
+			paneWidth: width of panes, either in percents or pixels
+
+		usage: 
+
+				$('selector').switcher({
+					onchange:function(){
+						// do stuff
+					},
+					dragend:function(){
+						// do stuff
+					}
+				});
+
+
+		todo:
+
+			scroll to certain list item
+			animations
+*/
+
+
+
 $.fn.extend({
 	// returns translated RELATIVE position
 	_getPosition:function(){
@@ -31,63 +91,6 @@ $.fn.extend({
 	},
 
 	switcher:function(opts){
-/*
-			infinite scroller
-			Heikki Pesonen
-			Metropolia university of applied sciences
-			2013
-
-			rotates between five divs in a loop, infinite number
-			of items can be displayed. 
-
-			When items-list runs out, the scroller will start scrolling
-			from the beginning.
-
-		
-		!!	uses jquery.hammer for touch
-			https://github.com/EightMedia/hammer.js
-
-		callbacks:
-
-			onchange: fired each time the middle pane changes
-			dragend: when draggin of the scroller has ended
-
-			the middle (active) pane is returned as "this" for easy access
-	
-		options:
-			items: set of items to be put inside each pane,
-				for example a div.. or an image.. 
-
-				html element
-	
-			tension: movement required to move the content to overcome the springback function,
-					ratio of an paneWidth.
-					tension value of 0.5 would require 200px move on a 400px wide container
-					default 0.6 must be over 0.5
-					if less than tension*width, element is sprung back into its original position.
-
-			touches: required number of touches (fingers) to move the elements,
-					default = 1
-
-			paneWidth: width of panes, either in percents or pixels
-
-		usage: 
-
-				$('selector').switcher({
-					onchange:function(){
-						// do stuff
-					},
-					dragend:function(){
-						// do stuff
-					}
-				});
-
-
-		todo:
-
-			scroll to certain list item
-			animations
-*/
 		if (!opts){
 			opts = {}
 		}
@@ -177,6 +180,7 @@ $.fn.extend({
 				_lastE = e;	
 			}
 		});
+
 		this.on('mouseup',function(e){
 			e.stopPropagation();
 			e.preventDefault();
@@ -191,6 +195,10 @@ $.fn.extend({
 			_checkPosition();
 		});
 
+
+		this.hammer().on('tap',function(e){
+			console.log(e);
+		});
 
 		// move to next item
 		function _next(){
