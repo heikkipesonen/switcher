@@ -1,4 +1,5 @@
 $.fn.extend({
+	// returns translated RELATIVE position
 	_getPosition:function(){
 		return {
 			top:parseFloat( this.attr('translate-y') ),
@@ -6,12 +7,21 @@ $.fn.extend({
 			unit:this.attr('translate-units')
 		}
 	},
+	
+	// makes functionality for each jquery element for translate command, prefixes are defined in prefix array
+	// only translates in relative coordinates
+	//
+	// uses translate-y and translate-x attributes for returning the current position
+	// also translate-units attribute is used, for easily read the units for translation,
+	// for example px or %
+
 	_translate:function(x,y,units){
+		var prefix = ['moz','o','ms','webkit'];
+
 		if (!units){
 			units = 'px';
 		}
 		
-		var prefix = ['moz','o','ms','webkit'];
 		for (var i in prefix){
 			this.css('-'+prefix[i]+'-transform','translate('+x+units+','+y+units+')');
 		}
@@ -19,14 +29,19 @@ $.fn.extend({
 		this.attr('translate-x',x).attr('translate-y',y).attr('translate-units',units);
 		return this;
 	},
+
 	switcher:function(opts){
 /*
-			infinite pane based scroller
+			infinite scroller
 			Heikki Pesonen
 			Metropolia School of applied sciences
 			2013
 
-			switches between five divs,
+			rotates between five divs in a loop, infinite number
+			of items can be displayed. 
+
+			When items-list runs out, the scroller will start scrolling
+			from the beginning.
 
 
 		callbacks:
@@ -34,9 +49,24 @@ $.fn.extend({
 			onchange: fired each time the middle pane changes
 			dragend: when draggin of the scroller has ended
 
-			the middle pane is returned as "this"
+			the middle (active) pane is returned as "this" for easy access
+	
+		options:
+			items: set of items to be put inside each pane,
+				for example a div.. or an image.. 
 
+				html element
+	
+			tension: movement required to move the content to overcome the springback function,
+					ratio of an paneWidth.
+					tension value of 0.1 would require 40px move on a 400px wide container
+					default 0.3
+					if less than tension*width, element is sprung back into its original position.
 
+			touches: required number of touches (fingers) to move the elements,
+					default = 1
+
+			paneWidth: width of panes, either in percents or pixels
 
 		usage: 
 
@@ -48,6 +78,12 @@ $.fn.extend({
 						// do stuff
 					}
 				});
+
+
+		todo:
+
+			scroll to certain list item
+			animations
 */
 		if (!opts){
 			opts = {}
@@ -59,11 +95,19 @@ $.fn.extend({
 			padding:'0px'
 		});
 
-		var _panes = [],				
+		var _panes = [],
+			_touchesToMove = opts.touches || 1,		
 			_offset = 0,
 			_items = opts.items || false,			
-			_tension = opts.tension || 0.4,
+			_tension = opts.tension || 0.2,
+			_dummy = $('<div id="dummy" />')
 			me = this;
+
+		_dummy.css({
+				'display':'none',
+				'width':'100',
+				'height':'100'
+		});
 
 		for (var i=0; i<5; i++){
 			var e = $('<div class="switcher-pane" id="switcher-pane-'+i+'"></div>');
@@ -72,8 +116,9 @@ $.fn.extend({
 				position:'absolute',
 				top:'0px',
 				left:'0px',
-				width:opts.paneWidth || '20%',
-				height:'100%'
+				width:opts.paneWidth || '40%',
+				height:'100%',
+				overflow:'hidden'
 			});
 			
 			e._translate(0,0);
@@ -83,7 +128,9 @@ $.fn.extend({
 		_reset.call(this);
 
 		var _lastE = false,
+			_lastChange = false,
 			_totalDistance = 0,
+			_direction = '',		
 			_paneWidth = _panes[2].outerWidth();
 
 
@@ -93,52 +140,110 @@ $.fn.extend({
 		});
 
 		// touch event listeners
-		this.on('mousedown',function(){
+		this.on('mousedown',function(e){
+			e.stopPropagation();
+			e.preventDefault();
+
 			_lastE = false;
 		});
-		this.hammer().on('touchstart',function(){
+		this.hammer().on('touchstart',function(e){
+			e.stopPropagation();
+			e.preventDefault();
 			_lastE = false;
+			_dummy.stop();
+			_speed = 0;
+			_dist = 0;
 		});
 
-		this.hammer().on('drag',function(e){	
-			var x = e.gesture.deltaX;
-			if (_lastE){
-				x = x-_lastE.gesture.deltaX;
+		this.hammer({drag_max_touches:10}).on('drag',function(e){
+			e.stopPropagation();
+			e.preventDefault();
+			e.gesture.preventDefault();
+			e.gesture.stopPropagation();
+
+			
+			if (e.gesture.pointerType != 'touch' || e.gesture.touches.length >= _touchesToMove){
+				var x = e.gesture.deltaX;
+				if (_lastE){
+					x = x-_lastE.gesture.deltaX;
+					_scroll(x);
+				}
+				_direction = e.gesture.deltaX;
+				_lastE = e;	
 			}
-			_scroll(x);
-			_lastE = e;
 		});
-		this.on('mouseup',function(){
-			_checkPosition();
-		});
-		this.hammer().on('touchend',function(e){
+		this.on('mouseup',function(e){
+			e.stopPropagation();
+			e.preventDefault();
+
 			_checkPosition();
 		});
 
+		this.hammer().on('touchend',function(e){
+			e.stopPropagation();
+			e.preventDefault();
+
+			_checkPosition();
+		});
+
+
+		// move to next item
+		function _next(){
+			var p = _getNext();
+			_animate( _getOffsetToCenter(p) );
+		}
+
+		// move to previous
+		function _prev(){			
+			var p = _getPrev();
+			_animate( _getOffsetToCenter(p) );
+		}
+
+
+		// animate panes using dummy object
+		function _animate(distance){						
+			var lastStep = 0;
+			_dummy.stop();
+			_dummy.css('width','100px');
+
+			_dummy.animate({
+				width:0
+			},{
+				step:function(step){
+					var cdist = (step-100) * (distance/100);					
+					_scroll( -(cdist-lastStep));
+					lastStep = cdist;
+				},
+				duration:200
+			});
+		}
+
+
+		// check the position of divs
 		function _checkPosition(){
 			var c = _getNearestOfCenter(),
 				offset = _getOffsetToCenter(c);
-			
+						
 			// if tension is exceeded, pane is switched
-			if (Math.abs(offset) >= _paneWidth*_tension){
-				_scroll(offset);
-			} else { // else, current pane is sprung back
-				_scrollTo( _getPanesByPosition()[2] );
+			if (Math.abs(offset) >= _paneWidth*_tension){				
+				if (_direction <0 ){
+					_next();
+				} else {
+					_prev();
+				}
+			} else { 				
+				_animate( _getOffsetToCenter( _getPanesByPosition()[2]) );
 			}
-			
-			if (opts.dragend){
-				opts.dragend.call(c);
-			}
-			$('.center').removeClass('center');
-			c.addClass('center');			
+			_onDragEnd(); // this usually is done after the touchend (or mouseup)
 		}
 
+		// show certain pane
 		function _scrollTo(pane){
 			var offset = _getOffsetToCenter(pane);
 			_scroll(offset);
 		}
 
-
+		// reset
 		function _reset(){			
 			_panes[2]._translate( this.innerWidth()/2 - _panes[2].outerWidth(true)/2 ,0);
 			_panes[1]._translate( this.innerWidth()/2 - _panes[2].outerWidth(true)/2 - _panes[1].outerWidth(true) ,0);
@@ -147,6 +252,14 @@ $.fn.extend({
 			_panes[4]._translate( this.innerWidth()/2 + _panes[2].outerWidth(true)/2 + _panes[3].outerWidth(true),0);				
 
 			_setOffset();
+			
+			var panes = _getPanesByPosition();
+			for (var i in panes){						
+				var index = parseInt( i ) + _offset - 2;	
+				panes[i].attr('scroll-index', index);
+				panes[i].html(_getListItem(index));
+			}
+
 		}
 
 		function _getRightPane(){
@@ -196,6 +309,14 @@ $.fn.extend({
 			return a;
 		}
 
+		function _getNext(){
+			return _getPanesByPosition()[3];
+		}
+
+		function _getPrev(){
+			return _getPanesByPosition()[1];
+		}
+
 		function _getOffsetToCenter(pane){
 			var center = me.innerWidth()/2,
 				pane_center = pane._getPosition().left +  pane.outerWidth()/2;
@@ -219,21 +340,49 @@ $.fn.extend({
 		}
 
 		function _setOffset(){
-			var panes = _getPanesByPosition();
-			for (var i in panes){			
-				var index = parseInt( i ) + _offset - 2;	
-				panes[i].attr('scroll-index', index);
-				panes[i].html(_getListItem(index));
-			}
+			var rp = _getRightPane(),
+				lp = _getLeftPane();
+
+			rp.attr('scroll-index', _offset+2).html(_getListItem(_offset+2));
+			lp.attr('scroll-index', _offset-2).html(_getListItem(_offset-2));
 		}
 
 		function _getListItem(index){
 			if (index >= _items.length){
 				return _getListItem( index - _items.length);
 			}  else if (index < 0){								
-				return _getListItem(Math.abs(index) );
+				return _getListItem(_items.length + index);
 			} else {
 				return _items[index];
+			}
+		}
+
+		function _getListItemIndex(item){
+			for (var i in _items){
+				if (_items[i] == item){
+					return i;
+				}
+			}
+		}
+
+		function _getIndex(pane){
+			return parseInt( pane.attr('scroll-index') );
+		}
+
+		function _onDragEnd(){
+			if (opts.dragend){
+				var pane =  _getCenterPane();
+				opts.dragend.call(pane, _getListItem( _getIndex(pane)),_getListItemIndex(_getListItem( _getIndex(pane))),_getIndex(pane));					
+			}
+		}
+
+		function _onchange(){
+			if (opts.onchange){
+				var pane =  _getCenterPane();
+				if (_getIndex(pane) != _lastChange){
+					opts.onchange.call(pane, _getListItem( _getIndex(pane)),_getListItemIndex(_getListItem( _getIndex(pane))),_getIndex(pane));					
+					_lastChange = _getIndex(pane);
+				}
 			}
 		}
 
@@ -251,20 +400,18 @@ $.fn.extend({
 				var right = _getRightPane(),
 					left = _getLeftPane();						
 				left._translate( right._getPosition().left +  right.outerWidth(true) );
-				if (opts.onchange){
-					opts.onchange.call( _getCenterPane() );
-				}
 				_offset++;
 				_setOffset();
+
+				_onchange();
 			} else if (Math.abs(_getOffsetToCenter(panes[4])) > 2.5*panes[0].outerWidth()){
 				var right = _getRightPane(),
 					left = _getLeftPane();					
 				right._translate( left._getPosition().left );
-				if (opts.onchange){
-					opts.onchange.call( _getCenterPane() );
-				}
 				_offset--;
 				_setOffset();
+
+				_onchange();
 			}
 
 			if (opts.ondrag){
@@ -273,5 +420,6 @@ $.fn.extend({
 		}
 
 
+		return this;
 	}
 });
