@@ -83,7 +83,7 @@ $.fn.extend({
 		}
 		
 		for (var i in prefix){
-			this.css('-'+prefix[i]+'-transform','translate('+x+units+','+y+units+')');
+			this.css('-'+prefix[i]+'-transform','translate3d('+x+units+','+y+units+',0px)');
 		}
 
 		this.attr('translate-x',x).attr('translate-y',y).attr('translate-units',units);
@@ -107,6 +107,7 @@ $.fn.extend({
 			_items = opts.items || false,			
 			_tension = opts.tension || 0.2,
 			_dummy = $('<div id="dummy" />'),
+			_changeVelocity = opts.changeVelocity || 2.5,
 			me = this;
 
 			if (_tension < 0.5) _tension = 0.5;
@@ -150,26 +151,28 @@ $.fn.extend({
 		// touch event listeners
 		this.on('mousedown',function(e){
 			e.stopPropagation();
-			e.preventDefault();
+			
 			_lastE = false;
 			_dummy.stop();
 			_totalDistance = 0;
 		});
 
 		this.hammer().on('touchstart',function(e){
-			e.stopPropagation();
-			e.preventDefault();
+			if (opts.preventDefault){
+				e.stopPropagation();
+				
+			}
 			_lastE = false;
 			_dummy.stop();
 			_totalDistance = 0;
 		});
 
 		this.hammer({drag_max_touches:_touchesToMove}).on('drag',function(e){
-			e.stopPropagation();
-			e.preventDefault();
-			e.gesture.preventDefault();
-			e.gesture.stopPropagation();
-
+			if (opts.preventDefault){
+				e.stopPropagation();	
+				e.gesture.stopPropagation();
+				e.gesture.preventDefault();
+			}
 			
 			if (e.gesture.pointerType != 'touch' || e.gesture.touches.length >= _touchesToMove){
 				var x = e.gesture.deltaX;
@@ -184,14 +187,25 @@ $.fn.extend({
 		});
 
 		this.on('mouseup',function(e){
-			_checkPosition();
+			var v = 0;
+			if (_lastE.gesture){
+				v = _lastE.gesture.velocityX;
+			}
+			_checkPosition(v);
 		});
 
 		this.hammer().on('touchend',function(e){
-			e.stopPropagation();
-			e.preventDefault();
+						
+			if (opts.preventDefault){
+				e.stopPropagation();
+				
+			}
 
-			_checkPosition();
+			var v = 0;
+			if (_lastE.gesture){
+				v = _lastE.gesture.velocityX;
+			}
+			_checkPosition(v);
 		});
 
 		// move to next item
@@ -227,13 +241,14 @@ $.fn.extend({
 
 
 		// check the position of divs
-		function _checkPosition(){
+		function _checkPosition(v){
 			var c = _getNearestOfCenter(),
 				offset = _getOffsetToCenter(c);
 			//offset = _totalDistance;
 						
 			// if tension is exceeded, pane is switched
-			if (Math.abs(offset) >= _paneWidth*_tension){				
+
+			if (Math.abs(offset) >= _paneWidth*_tension || v>=_changeVelocity){
 				if (_direction <0 ){
 					_next();
 				} else {
@@ -272,7 +287,7 @@ $.fn.extend({
 		}
 
 		function _getRightPane(){
-			
+			/*
 			var mx = -Infinity;
 			var p = false;
 			for (var i in _panes){
@@ -281,10 +296,12 @@ $.fn.extend({
 					mx = _panes[i]._getPosition().left;
 				}
 			}
-			return p;
+			return p;*/
+			return _getPanesByPosition()[4];
 		}
 
 		function _getLeftPane(){
+			/*
 			var mx = Infinity;
 			var p = false;
 			for (var i in _panes){
@@ -294,6 +311,8 @@ $.fn.extend({
 				}
 			}
 			return p;
+			*/
+			return _getPanesByPosition()[0];
 		}
 
 		function _getCenterPane(){
@@ -347,7 +366,6 @@ $.fn.extend({
 			var rp = _getRightPane(),
 				lp = _getLeftPane();
 
-			
 			rp.attr('scroll-index', _offset+2).html(_getListItem(_offset+2)).attr('list-index', _getListItemIndex(_getListItem(_offset+2)));
 			lp.attr('scroll-index', _offset-2).html(_getListItem(_offset-2)).attr('list-index', _getListItemIndex(_getListItem(_offset-2)));
 		}
@@ -412,11 +430,13 @@ $.fn.extend({
 			} else if (Math.abs(_getOffsetToCenter(panes[4])) > 2.5*panes[0].outerWidth()){
 				var right = _getRightPane(),
 					left = _getLeftPane();					
-				right._translate( left._getPosition().left );
+				
+				right._translate( left._getPosition().left - right.outerWidth(true));
 				_offset--;
 				_setOffset();
 
 				_onchange();
+				
 			}
 
 			if (opts.ondrag){
