@@ -22,7 +22,7 @@
 			the middle (active) pane is returned as "this" for easy access
 	
 		options:
-			items: set of items to be put inside each pane,
+			items: the required set of items to be put inside each pane,
 				for example a div.. or an image.. 
 				html element
 
@@ -128,14 +128,10 @@ function switcher(selector,opts){
  	this._lastE = false;
 	this._lastChange = false;
 	this._totalDistance = 0;
-	this._direction = '';
-	this._paneWidth = _panes[2].outerWidth();
-	this._animating = false;
-	this._animation_wait = false;
 
 	me = this;
 
-	if (this_tension < 0.5) this_tension = 0.5; // tension limits, for unexpected behaviour stuff.....
+	if (this._tension < 0.5) this._tension = 0.5; // tension limits, for unexpected behaviour stuff.....
 
 	this._dummy.css({
 		'display':'none',
@@ -161,6 +157,10 @@ function switcher(selector,opts){
 	}
 
 	this._reset();
+	this._direction = '';
+	this._paneWidth = this._panes[2].outerWidth();
+	this._animating = false;
+	this._animation_wait = false;
 
 
 	// response to the window size change
@@ -242,7 +242,6 @@ switcher.prototype = {
 	},
 	// move to previous
 	_prev:function(){			
-		var p = ;
 		this._animate( this._getOffsetToCenter( this._getPrev() ) );
 	},
 	// animate panes using dummy object
@@ -298,7 +297,7 @@ switcher.prototype = {
 		this._setOffset();
 		var panes = this._getPanesByPosition();
 		for (var i in panes){						
-			var index = parseInt( i ) + _offset - 2;	
+			var index = parseInt( i ) + this._offset - 2;	
 			panes[i].attr('scroll-index', index);
 			panes[i].html(this._getListItem(index));
 			panes[i].attr('list-index', this._getListItemIndex(this._getListItem(index)));
@@ -353,8 +352,8 @@ switcher.prototype = {
 		var rp = this._getRightPane(),
 			lp = this._getLeftPane();
 
-		rp.attr('scroll-index', _offset+2).html( this._getListItem(_offset+2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset+2)));
-		lp.attr('scroll-index', _offset-2).html( this._getListItem(_offset-2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset-2)));
+		rp.attr('scroll-index', this._offset+2).html( this._getListItem(this._offset+2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset+2)));
+		lp.attr('scroll-index', this._offset-2).html( this._getListItem(this._offset-2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset-2)));
 	},
 	_getListItem:function(index){
 		if (index >= this._items.length){
@@ -367,8 +366,8 @@ switcher.prototype = {
 	},
 	_getListItemIndex:function(item){
 		//.indexof(item)
-		for (var i in _items){
-			if (_items[i] == item){
+		for (var i in this._items){
+			if (this._items[i] == item){
 				return i;
 			}
 		}
@@ -386,7 +385,7 @@ switcher.prototype = {
 		if (this._opts.onchange){
 			var pane =  this._getCenterPane();
 			if (this._getIndex(pane) != this._lastChange){
-				opts.onchange.call(pane,newPane,this._getListItemIndex(this._getIndex(pane)));
+				this._opts.onchange.call(pane,newPane,this._getListItemIndex(this._getIndex(pane)));
 				this._lastChange = this._getIndex(pane);
 			}
 		}
@@ -409,7 +408,7 @@ switcher.prototype = {
 			this._offset++;
 			this._setOffset();
 			this._onchange(left);
-		} else if (Math.abs(_getOffsetToCenter(panes[4])) > 2.5*panes[0].outerWidth()){
+		} else if (Math.abs(this._getOffsetToCenter(panes[4])) > 2.5*panes[0].outerWidth()){
 			var right = this._getRightPane(),
 				left = this._getLeftPane();					
 			
@@ -420,8 +419,8 @@ switcher.prototype = {
 			this._onchange(right);				
 		}
 
-		if (opts.ondrag){
-			opts.ondrag.call(this,px);
+		if (this._opts.ondrag){
+			this._opts.ondrag(px);
 		}
 	}
 }
