@@ -11,7 +11,7 @@
 			from the beginning.
 
 		
-		!!	uses jquery.hammer for touch
+		!!	uses = REQUIRES jquery.hammer for touch
 			https://github.com/EightMedia/hammer.js
 
 		callbacks:
@@ -24,8 +24,9 @@
 		options:
 			items: set of items to be put inside each pane,
 				for example a div.. or an image.. 
-
 				html element
+
+				use onchange function for more complex actions
 	
 			tension: movement required to move the content to overcome the springback function,
 					ratio of an paneWidth.
@@ -39,9 +40,11 @@
 			paneWidth: width of panes, either in percents or pixels
 
 		usage: 
-
 				$('selector').switcher({
-					onchange:function(){
+					onchange:function([new pane that became visible], [list index of the current middle pane] ){
+
+						this = middle pane (the one on center of the screen)
+						
 						// do stuff
 					},
 					dragend:function(){
@@ -49,17 +52,19 @@
 					}
 				});
 
+		returns the switcher object
+		which can be used from there on
 
 		todo:
-
 			scroll to certain list item
-			animations
+			inertia
 */
 
 
 
 $.fn.extend({
 	// returns translated RELATIVE position
+	// because of reasons
 	_getPosition:function(){
 		return {
 			top:parseFloat( this.attr('translate-y') ),
@@ -89,351 +94,334 @@ $.fn.extend({
 		this.attr('translate-x',x).attr('translate-y',y).attr('translate-units',units);
 		return this;
 	},
-
 	switcher:function(opts){
-		if (!opts){
-			opts = {}
-		}
+		return new switcher(this,opts);
+	}
+});
 
-		this.css({
-			position:'relative',
-			overflow:'hidden',
-			padding:'0px'
+function switcher(selector,opts){
+	this._element = $(selector);
+	if (!opts){
+		opts = {}
+	}
+
+	this._opts = opts;
+
+	this._element.css({
+		position:'relative',
+		overflow:'hidden',
+		padding:'0px'
+	});
+
+	/*
+		horrible constructor
+	*/
+	this._panes = [];
+
+	this._touchesToMove = opts.touches || 1;
+	this._offset = 0;
+	this._keys = opts.useArrowKeys || true;
+	this._items = opts.items || false;	
+	this._tension = opts.tension || 0.2;
+	this._dummy = $('<div id="dummy" />');
+	this._changeVelocity = opts.changeVelocity || 2.5;
+ 	this._lastE = false;
+	this._lastChange = false;
+	this._totalDistance = 0;
+	this._direction = '';
+	this._paneWidth = _panes[2].outerWidth();
+	this._animating = false;
+	this._animation_wait = false;
+
+	me = this;
+
+	if (this_tension < 0.5) this_tension = 0.5; // tension limits, for unexpected behaviour stuff.....
+
+	this._dummy.css({
+		'display':'none',
+		'width':'100',
+		'height':'100'
+	});
+
+	for (var i=0; i<5; i++){
+		var e = $('<div class="switcher-pane" id="switcher-pane-'+i+'"></div>');
+		
+		e.css({
+			position:'absolute',
+			top:'0px',
+			left:'0px',
+			width:opts.paneWidth || '40%',
+			height:'100%',
+			overflow:'hidden'
 		});
+		
+		e._translate(0,0);
+		this._panes.push(e);
+		this._element.append(e);
+	}
 
-		var _panes = [],
-			_touchesToMove = opts.touches || 1,		
-			_offset = 0,
-			_items = opts.items || false,			
-			_tension = opts.tension || 0.2,
-			_dummy = $('<div id="dummy" />'),
-			_changeVelocity = opts.changeVelocity || 2.5,
-			me = this;
-
-			if (_tension < 0.5) _tension = 0.5;
-
-		_dummy.css({
-				'display':'none',
-				'width':'100',
-				'height':'100'
-		});
-
-		for (var i=0; i<5; i++){
-			var e = $('<div class="switcher-pane" id="switcher-pane-'+i+'"></div>');
-			
-			e.css({
-				position:'absolute',
-				top:'0px',
-				left:'0px',
-				width:opts.paneWidth || '40%',
-				height:'100%',
-				overflow:'hidden'
-			});
-			
-			e._translate(0,0);
-			_panes.push(e);
-			this.append(e);
-		}
-		_reset.call(this);
-
-		var _lastE = false,
-			_lastChange = false,
-			_totalDistance = 0,
-			_direction = '',		
-			_paneWidth = _panes[2].outerWidth();
+	this._reset();
 
 
-		// response to the window size change
-		$(window).resize(function(){
-			_scrollTo( _getCenterPane() );
-		});
+	// response to the window size change
+	$(window).resize(function(){
+		me._scrollTo( me._getCenterPane() );
+	});
 
-		// touch event listeners
-		this.on('mousedown',function(e){
-			_lastE = false;
-			_dummy.stop();
-			_totalDistance = 0;
-		});
+	// touch event listeners
+	// 		start event values reset
+	this._element.on('mousedown',function(e){
+		me._lastE = false;
+		me._dummy.stop();
+		me._totalDistance = 0;
+	});
 
-		this.hammer().on('touchstart',function(e){
-			_lastE = false;
-			_dummy.stop();
-			_totalDistance = 0;
-		});
+	this._element.hammer().on('touchstart',function(e){
+		me._lastE = false;
+		me._dummy.stop();
+		me._totalDistance = 0;
+	});
 
-		this.hammer({drag_max_touches:_touchesToMove}).on('drag',function(e){
-			
+	/*
+		bind hammer for moving the panes around
+	*/
+	this._element.hammer({drag_max_touches:this._touchesToMove}).on('drag',function(e){
+		if (e.gesture){	
+			// stop event from bubbling into elements on movable panes
 			e.gesture.stopPropagation();
 			e.preventDefault();
 			e.stopPropagation();
-		
-			if (e.gesture.pointerType != 'touch' || e.gesture.touches.length >= _touchesToMove){
+	
+			if (e.gesture.pointerType != 'touch' || e.gesture.touches.length >= me._touchesToMove){
 				var x = e.gesture.deltaX;
-				if (_lastE){
-					x = x-_lastE.gesture.deltaX;
-					_scroll(x);
+				if (me._lastE){
+					x = x-me._lastE.gesture.deltaX;
+					me._scroll(x);
 				}
-				_totalDistance += x;
-				_direction = e.gesture.deltaX;
-				_lastE = e;	
+				me._totalDistance += x;
+				me._direction = e.gesture.deltaX;
+				me._lastE = e;	
+			}
+		}
+	});
+
+
+	// action end
+	this._element.on('mouseup',function(e){
+		var v = 0;
+		if (me._lastE.gesture){
+			v = me._lastE.gesture.velocityX;
+		}
+		me._checkPosition(v);
+	});
+
+	this._element.hammer().on('touchend',function(e){						
+		var v = 0;
+		if (me._lastE.gesture){
+			v = me._lastE.gesture.velocityX;
+		}
+		me._checkPosition(v);
+	});
+
+	if (me._keys){
+		$(document).keyup(function(e){
+			if (e.keyCode == 37){
+				me._prev();
+			} else if (e.keyCode == 39){
+				me._next();
 			}
 		});
-
-		this.on('mouseup',function(e){
-			var v = 0;
-			if (_lastE.gesture){
-				v = _lastE.gesture.velocityX;
-			}
-			_checkPosition(v);
-		});
-
-		this.hammer().on('touchend',function(e){						
-			var v = 0;
-			if (_lastE.gesture){
-				v = _lastE.gesture.velocityX;
-			}
-			_checkPosition(v);
-		});
-
-		// move to next item
-		function _next(){
-			var p = _getNext();
-			_animate( _getOffsetToCenter(p) );
-		}
-
-		// move to previous
-		function _prev(){			
-			var p = _getPrev();
-			_animate( _getOffsetToCenter(p) );
-		}
-
-
-		// animate panes using dummy object
-		function _animate(distance){						
-			var lastStep = 0;
-			_dummy.stop();
-			_dummy.css('width','100px');
-
-			_dummy.animate({
-				width:0
-			},{
-				step:function(step){
-					var cdist = (step-100) * (distance/100);					
-					_scroll( -(cdist-lastStep));
-					lastStep = cdist;
-				},
-				duration:200
-			});
-		}
-
-
-		// check the position of divs
-		function _checkPosition(v){
-			var c = _getNearestOfCenter(),
-				offset = _getOffsetToCenter(c);
-			//offset = _totalDistance;
-						
-			// if tension is exceeded, pane is switched
-
-			if (Math.abs(offset) >= _paneWidth*_tension || v>=_changeVelocity){
-				if (_direction <0 ){
-					_next();
-				} else {
-					_prev();
-				}
-			} else { 				
-				_animate( _getOffsetToCenter( _getPanesByPosition()[2]) );
-			}
-			_onDragEnd(); // this usually is done after the touchend (or mouseup)
-		}
-
-		// show certain pane
-		function _scrollTo(pane){
-			var offset = _getOffsetToCenter(pane);
-			_scroll(offset);
-		}
-
-		// reset
-		function _reset(){			
-			_panes[2]._translate( this.innerWidth()/2 - _panes[2].outerWidth(true)/2 ,0);
-			_panes[1]._translate( this.innerWidth()/2 - _panes[2].outerWidth(true)/2 - _panes[1].outerWidth(true) ,0);
-			_panes[0]._translate( this.innerWidth()/2 - _panes[2].outerWidth(true)/2 - _panes[1].outerWidth(true) - _panes[0].outerWidth(true) ,0);				
-			_panes[3]._translate( this.innerWidth()/2 + _panes[2].outerWidth(true)/2,0);
-			_panes[4]._translate( this.innerWidth()/2 + _panes[2].outerWidth(true)/2 + _panes[3].outerWidth(true),0);				
-
-			_setOffset();
-			
-			var panes = _getPanesByPosition();
-			for (var i in panes){						
-				var index = parseInt( i ) + _offset - 2;	
-				panes[i].attr('scroll-index', index);
-				panes[i].html(_getListItem(index));
-				panes[i].attr('list-index', _getListItemIndex(_getListItem(index)));
-			}
-
-		}
-
-		function _getRightPane(){
-			/*
-			var mx = -Infinity;
-			var p = false;
-			for (var i in _panes){
-				if (_panes[i]._getPosition().left > mx){
-					p= _panes[i];
-					mx = _panes[i]._getPosition().left;
-				}
-			}
-			return p;*/
-			return _getPanesByPosition()[4];
-		}
-
-		function _getLeftPane(){
-			/*
-			var mx = Infinity;
-			var p = false;
-			for (var i in _panes){
-				if (_panes[i]._getPosition().left < mx){
-					p = _panes[i];
-					mx = _panes[i]._getPosition().left;
-				}
-			}
-			return p;
-			*/
-			return _getPanesByPosition()[0];
-		}
-
-		function _getCenterPane(){
-			return _getPanesByPosition()[2];
-		}
-
-		function _getPanesByPosition(){
-			var a = [];
-			for (var i in _panes){
-				a.push(_panes[i]);
-			}
-
-			a.sort(function(a,b){
-				return a._getPosition().left - b._getPosition().left;
-			});
-
-			return a;
-		}
-
-		function _getNext(){
-			return _getPanesByPosition()[3];
-		}
-
-		function _getPrev(){
-			return _getPanesByPosition()[1];
-		}
-
-		function _getOffsetToCenter(pane){
-			var center = me.innerWidth()/2,
-				pane_center = pane._getPosition().left +  pane.outerWidth()/2;
-				
-			return center - pane_center;
-		}
-
-		function _getNearestOfCenter(){
-			var diff = Infinity,
-				pane = false;
-
-			for (var i in _panes){
-				var offset = Math.abs( _getOffsetToCenter(_panes[i]) );
-				if (offset < diff){
-					diff = offset;
-					pane = _panes[i];
-				}
-			}
-
-			return pane;
-		}
-
-		function _setOffset(){
-			var rp = _getRightPane(),
-				lp = _getLeftPane();
-
-			rp.attr('scroll-index', _offset+2).html(_getListItem(_offset+2)).attr('list-index', _getListItemIndex(_getListItem(_offset+2)));
-			lp.attr('scroll-index', _offset-2).html(_getListItem(_offset-2)).attr('list-index', _getListItemIndex(_getListItem(_offset-2)));
-		}
-
-		function _getListItem(index){
-			if (index >= _items.length){
-				return _getListItem( index - _items.length);
-			}  else if (index < 0){								
-				return _getListItem(_items.length + index);
-			} else {
-				return _items[index];
-			}
-		}
-
-		function _getListItemIndex(item){
-			for (var i in _items){
-				if (_items[i] == item){
-					return i;
-				}
-			}
-		}
-
-		function _getIndex(pane){
-			return parseInt( pane.attr('scroll-index') );
-		}
-
-		function _onDragEnd(){
-			if (opts.dragend){
-				var pane =  _getCenterPane();
-				opts.dragend.call(pane);
-				// _getListItem( _getIndex(pane)),_getListItemIndex(_getListItem( _getIndex(pane))),_getIndex(pane)
-			}
-		}
-
-		function _onchange(newPane){
-			if (opts.onchange){
-				var pane =  _getCenterPane();
-				if (_getIndex(pane) != _lastChange){
-					// _getListItem( _getIndex(pane)),_getListItemIndex(_getListItem( _getIndex(pane))),_getIndex(pane)
-					opts.onchange.call(pane,newPane);
-					_lastChange = _getIndex(pane);
-				}
-			}
-		}
-
-		function _scroll(px){	
-			var panes = _getPanesByPosition();	// panes sorted by position
-			x = panes[2]._getPosition().left + px; // middle pane position, other positions are based on this one
-
-			panes[2]._translate( x ,0); // the middle pane				
-			panes[1]._translate( x - panes[1].outerWidth(true) ,0); // one to the left
-			panes[0]._translate( x - panes[1].outerWidth(true) - panes[0].outerWidth(true) ,0);	// leftmost pane
-			panes[3]._translate( x + panes[2].outerWidth(true) ,0);	// one to the right
-			panes[4]._translate( x + panes[2].outerWidth(true) + panes[3].outerWidth(true),0);	// rightmost pane
-			
-			if (Math.abs(_getOffsetToCenter(panes[0])) > 2.5*panes[0].outerWidth()){
-				var right = _getRightPane(),
-					left = _getLeftPane();						
-				left._translate( right._getPosition().left +  right.outerWidth(true) );
-				_offset++;
-				_setOffset();
-
-				_onchange(left);
-			} else if (Math.abs(_getOffsetToCenter(panes[4])) > 2.5*panes[0].outerWidth()){
-				var right = _getRightPane(),
-					left = _getLeftPane();					
-				
-				right._translate( left._getPosition().left - right.outerWidth(true));
-				_offset--;
-				_setOffset();
-
-				_onchange(right);
-				
-			}
-
-			if (opts.ondrag){
-				opts.ondrag.call(me,px);
-			}
-		}
-
-
-		return this;
 	}
-});
+}
+
+
+switcher.prototype = {
+	// move to next item
+	_next:function(){
+		this._animate( this._getOffsetToCenter( this._getNext() ) );
+	},
+	// move to previous
+	_prev:function(){			
+		var p = ;
+		this._animate( this._getOffsetToCenter( this._getPrev() ) );
+	},
+	// animate panes using dummy object
+	_animate:function(distance){						
+		var lastStep = 0,
+			me = this;
+		this._animating = true;
+		this._dummy.stop();
+		this._dummy.css('width','100px');
+
+		this._dummy.animate({
+			width:0
+		},{
+			step:function(step){
+				var cdist = (step-100) * (distance/100);					
+				me._scroll( -(cdist-lastStep));
+				lastStep = cdist;
+			},
+			complete:function(){
+				me._animating = false;
+			},
+			duration:200
+		});
+	},
+	// check the position of divs
+	_checkPosition:function(v){
+		var c = this._getNearestOfCenter(),
+			offset = this._getOffsetToCenter(c);
+		// if tension is exceeded, pane is switched
+		if (Math.abs(offset) >= this._paneWidth*this._tension || v>=this._changeVelocity){
+			if (this._direction <0 ){
+				this._next();
+			} else {
+				this._prev();
+			}
+		} else { 				
+			this._animate( this._getOffsetToCenter( this._getPanesByPosition()[2]) );
+		}
+		this._onDragEnd(); // this usually is done after the touchend (or mouseup)
+	},
+	// show certain pane
+	_scrollTo:function(pane){
+		this._scroll( this._getOffsetToCenter(pane));
+	},
+	// reset
+	_reset:function(){			
+		this._panes[2]._translate( this._element.innerWidth()/2 - this._panes[2].outerWidth(true)/2 ,0);
+		this._panes[1]._translate( this._element.innerWidth()/2 - this._panes[2].outerWidth(true)/2 - this._panes[1].outerWidth(true) ,0);
+		this._panes[0]._translate( this._element.innerWidth()/2 - this._panes[2].outerWidth(true)/2 - this._panes[1].outerWidth(true) - this._panes[0].outerWidth(true) ,0);				
+		this._panes[3]._translate( this._element.innerWidth()/2 + this._panes[2].outerWidth(true)/2,0);
+		this._panes[4]._translate( this._element.innerWidth()/2 + this._panes[2].outerWidth(true)/2 + this._panes[3].outerWidth(true),0);				
+
+		this._setOffset();
+		var panes = this._getPanesByPosition();
+		for (var i in panes){						
+			var index = parseInt( i ) + _offset - 2;	
+			panes[i].attr('scroll-index', index);
+			panes[i].html(this._getListItem(index));
+			panes[i].attr('list-index', this._getListItemIndex(this._getListItem(index)));
+		}
+	},
+	_getRightPane:function(){
+		return this._getPanesByPosition()[4];
+	},
+	_getLeftPane:function(){
+		return this._getPanesByPosition()[0];
+	},
+	_getCenterPane:function(){
+		return this._getPanesByPosition()[2];
+	},
+	_getNext:function(){
+		return this._getPanesByPosition()[3];
+	},
+	_getPrev:function(){
+		return this._getPanesByPosition()[1];
+	},
+	_getPanesByPosition:function(){
+		var a = [];
+		for (var i in this._panes){
+			a.push(this._panes[i]);
+		}
+
+		a.sort(function(a,b){
+			return a._getPosition().left - b._getPosition().left;
+		});
+
+		return a;
+	},
+	_getOffsetToCenter:function(pane){
+		var center = this._element.innerWidth()/2,
+			pane_center = pane._getPosition().left +  pane.outerWidth()/2;				
+		return center - pane_center;
+	},
+	_getNearestOfCenter:function(){
+		var diff = Infinity,
+			pane = false;
+
+		for (var i in this._panes){
+			var offset = Math.abs( this._getOffsetToCenter( this._panes[i]) );
+			if (offset < diff){
+				diff = offset;
+				pane = this._panes[i];
+			}
+		}
+		return pane;
+	},
+	 _setOffset:function(){
+		var rp = this._getRightPane(),
+			lp = this._getLeftPane();
+
+		rp.attr('scroll-index', _offset+2).html( this._getListItem(_offset+2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset+2)));
+		lp.attr('scroll-index', _offset-2).html( this._getListItem(_offset-2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset-2)));
+	},
+	_getListItem:function(index){
+		if (index >= this._items.length){
+			return this._getListItem( index - this._items.length);
+		}  else if (index < 0){								
+			return this._getListItem(this._items.length + index);
+		} else {
+			return this._items[index];
+		}
+	},
+	_getListItemIndex:function(item){
+		//.indexof(item)
+		for (var i in _items){
+			if (_items[i] == item){
+				return i;
+			}
+		}
+	},
+	_getIndex:function(pane){
+		return parseInt( pane.attr('scroll-index') );
+	},
+	_onDragEnd:function(){
+		if (this._opts.dragend){
+			var pane =  this._getCenterPane();
+			opts.dragend.call(pane,this._getListItemIndex(this._getIndex(pane)));
+		}
+	},
+	_onchange:function(newPane){
+		if (this._opts.onchange){
+			var pane =  this._getCenterPane();
+			if (this._getIndex(pane) != this._lastChange){
+				opts.onchange.call(pane,newPane,this._getListItemIndex(this._getIndex(pane)));
+				this._lastChange = this._getIndex(pane);
+			}
+		}
+	},
+	// scroll function, moves elements
+	_scroll:function(px){	
+		var panes = this._getPanesByPosition();	// panes sorted by position
+		x = panes[2]._getPosition().left + px; // middle pane position, other positions are based on this one
+
+		panes[2]._translate( x ,0); // the middle pane				
+		panes[1]._translate( x - panes[1].outerWidth(true) ,0); // one to the left
+		panes[0]._translate( x - panes[1].outerWidth(true) - panes[0].outerWidth(true) ,0);	// leftmost pane
+		panes[3]._translate( x + panes[2].outerWidth(true) ,0);	// one to the right
+		panes[4]._translate( x + panes[2].outerWidth(true) + panes[3].outerWidth(true),0);	// rightmost pane
+		
+		if (Math.abs(this._getOffsetToCenter(panes[0])) > 2.5*panes[0].outerWidth()){
+			var right = this._getRightPane(),
+				left = this._getLeftPane();						
+			left._translate( right._getPosition().left +  right.outerWidth(true) );
+			this._offset++;
+			this._setOffset();
+			this._onchange(left);
+		} else if (Math.abs(_getOffsetToCenter(panes[4])) > 2.5*panes[0].outerWidth()){
+			var right = this._getRightPane(),
+				left = this._getLeftPane();					
+			
+			right._translate( left._getPosition().left - right.outerWidth(true));
+			this._offset--;
+			this._setOffset();
+
+			this._onchange(right);				
+		}
+
+		if (opts.ondrag){
+			opts.ondrag.call(this,px);
+		}
+	}
+}
