@@ -11,22 +11,25 @@
 			from the beginning.
 
 		
-		!!	uses = REQUIRES jquery.hammer for touch
+		!!	REQUIRES jquery.hammer for touch
 			https://github.com/EightMedia/hammer.js
 
 		callbacks:
 
 			onchange: fired each time the middle pane changes
 			dragend: when draggin of the scroller has ended
-
+			ondrag: return pixel values while moving
+			
 			the middle (active) pane is returned as "this" for easy access
 	
 		options:
-			items: the required set of items to be put inside each pane,
-				for example a div.. or an image.. 
-				html element
+			
+		!!	items: the set of items to be put inside panes,
+				for example array of divs.. or images.. 
+				html elements
 
-				use onchange function for more complex actions
+				use onchange function for more complex actions and to
+				change the divs content while changing pages
 	
 			tension: movement required to move the content to overcome the springback function,
 					ratio of an paneWidth.
@@ -37,20 +40,20 @@
 			touches: required number of touches (fingers) to move the scroller,
 					default = 1
 
-			paneWidth: width of panes, either in percents or pixels
+			paneWidth: width of panes, either in percents or pixels (default: 40%)
 
 		usage: 
-				var MySwitcherObject = $('selector').switcher({
-					onchange:function([new pane that became visible], [list index of the current middle pane] ){
+			var MySwitcherObject = $('selector').switcher({
+				onchange:function([new pane that became visible], [list index of the current middle pane] ){
 
-						this = middle pane (the one on center of the screen)
-						
-						// do stuff
-					},
-					dragend:function(){
-						// do stuff
-					}
-				});
+					this = middle pane (the one on center of the screen)
+					
+					// do stuff
+				},
+				dragend:function(){
+					// do stuff
+				}
+			});
 
 
 
@@ -58,6 +61,7 @@
 				
 				MySwitcherObject.next();
 				MySwitcherObject.prev();
+				MySwitcherObject.goto( list item index ) -> will jump into the pane containing the item
 
 
 
@@ -66,7 +70,7 @@
 		which can be used from there on
 
 		todo:
-			scroll to certain list item
+			scroll to certain list item, done, but needs adjustments
 			inertia
 */
 
