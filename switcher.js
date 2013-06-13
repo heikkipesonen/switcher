@@ -40,7 +40,7 @@
 			paneWidth: width of panes, either in percents or pixels
 
 		usage: 
-				$('selector').switcher({
+				var MySwitcherObject = $('selector').switcher({
 					onchange:function([new pane that became visible], [list index of the current middle pane] ){
 
 						this = middle pane (the one on center of the screen)
@@ -51,6 +51,16 @@
 						// do stuff
 					}
 				});
+
+
+
+			methods:
+				
+				MySwitcherObject.next();
+				MySwitcherObject.prev();
+
+
+
 
 		returns the switcher object
 		which can be used from there on
@@ -205,6 +215,13 @@ function switcher(selector,opts){
 		}
 	});
 
+	this._element.on('mouseleave',function(e){
+		var v = 0;
+		if (me._lastE.gesture){
+			v = me._lastE.gesture.velocityX;
+		}
+		me._checkPosition(v);
+	});
 
 	// action end
 	this._element.on('mouseup',function(e){
@@ -226,26 +243,38 @@ function switcher(selector,opts){
 	if (me._keys){
 		$(document).keyup(function(e){
 			if (e.keyCode == 37){
-				me._prev();
+				me.prev();
 			} else if (e.keyCode == 39){
-				me._next();
+				me.next();
 			}
 		});
 	}
 }
 
 
-switcher.prototype = {
+switcher.prototype = {	
+	goto:function(index){
+		var diff = this._offset - index;
+		if (diff == -1){
+			this.prev();
+		} else if (diff == 1){
+			this.next();
+		} else if (diff!= 0){
+			this._offset = index;
+			this._reset();
+			this._onchange();
+		}
+	},
 	// move to next item
-	_next:function(){
+	next:function(){
 		this._animate( this._getOffsetToCenter( this._getNext() ) );
 	},
 	// move to previous
-	_prev:function(){			
+	prev:function(){			
 		this._animate( this._getOffsetToCenter( this._getPrev() ) );
 	},
 	// animate panes using dummy object
-	_animate:function(distance){						
+	_animate:function(distance,duration){						
 		var lastStep = 0,
 			me = this;
 		this._animating = true;
@@ -263,7 +292,7 @@ switcher.prototype = {
 			complete:function(){
 				me._animating = false;
 			},
-			duration:200
+			duration: duration || 200
 		});
 	},
 	// check the position of divs
@@ -273,9 +302,9 @@ switcher.prototype = {
 		// if tension is exceeded, pane is switched
 		if (Math.abs(offset) >= this._paneWidth*this._tension || v>=this._changeVelocity){
 			if (this._direction <0 ){
-				this._next();
+				this.next();
 			} else {
-				this._prev();
+				this.prev();
 			}
 		} else { 				
 			this._animate( this._getOffsetToCenter( this._getPanesByPosition()[2]) );
@@ -290,14 +319,16 @@ switcher.prototype = {
 	_reset:function(){			
 		this._panes[2]._translate( this._element.innerWidth()/2 - this._panes[2].outerWidth(true)/2 ,0);
 		this._panes[1]._translate( this._element.innerWidth()/2 - this._panes[2].outerWidth(true)/2 - this._panes[1].outerWidth(true) ,0);
-		this._panes[0]._translate( this._element.innerWidth()/2 - this._panes[2].outerWidth(true)/2 - this._panes[1].outerWidth(true) - this._panes[0].outerWidth(true) ,0);				
+		this._panes[0]._translate( this._element.innerWidth()/2 - this._panes[2].outerWidth(true)/2 - this._panes[1].outerWidth(true) - this._panes[0].outerWidth(true) ,0);
 		this._panes[3]._translate( this._element.innerWidth()/2 + this._panes[2].outerWidth(true)/2,0);
 		this._panes[4]._translate( this._element.innerWidth()/2 + this._panes[2].outerWidth(true)/2 + this._panes[3].outerWidth(true),0);				
 
 		this._setOffset();
+
 		var panes = this._getPanesByPosition();
-		for (var i in panes){						
-			var index = parseInt( i ) + this._offset - 2;	
+
+		for (var i in panes){
+			var index = parseInt( i ) + this._offset - 2;
 			panes[i].attr('scroll-index', index);
 			panes[i].html(this._getListItem(index));
 			panes[i].attr('list-index', this._getListItemIndex(this._getListItem(index)));
