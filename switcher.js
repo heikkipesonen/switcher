@@ -11,25 +11,22 @@
 			from the beginning.
 
 		
-		!!	REQUIRES jquery.hammer for touch
+		!!	uses = REQUIRES jquery.hammer for touch
 			https://github.com/EightMedia/hammer.js
 
 		callbacks:
 
 			onchange: fired each time the middle pane changes
 			dragend: when draggin of the scroller has ended
-			ondrag: return pixel values while moving
-			
+
 			the middle (active) pane is returned as "this" for easy access
 	
 		options:
-			
-		!!	items: the set of items to be put inside panes,
-				for example array of divs.. or images.. 
-				html elements
+			items: the required set of items to be put inside each pane,
+				for example a div.. or an image.. 
+				html element
 
-				use onchange function for more complex actions and to
-				change the divs content while changing pages
+				use onchange function for more complex actions
 	
 			tension: movement required to move the content to overcome the springback function,
 					ratio of an paneWidth.
@@ -40,20 +37,20 @@
 			touches: required number of touches (fingers) to move the scroller,
 					default = 1
 
-			paneWidth: width of panes, either in percents or pixels (default: 40%)
+			paneWidth: width of panes, either in percents or pixels
 
 		usage: 
-			var MySwitcherObject = $('selector').switcher({
-				onchange:function([new pane that became visible], [list index of the current middle pane] ){
+				var MySwitcherObject = $('selector').switcher({
+					onchange:function([new pane that became visible], [list index of the current middle pane] ){
 
-					this = middle pane (the one on center of the screen)
-					
-					// do stuff
-				},
-				dragend:function(){
-					// do stuff
-				}
-			});
+						this = middle pane (the one on center of the screen)
+						
+						// do stuff
+					},
+					dragend:function(){
+						// do stuff
+					}
+				});
 
 
 
@@ -61,7 +58,6 @@
 				
 				MySwitcherObject.next();
 				MySwitcherObject.prev();
-				MySwitcherObject.goto( list item index ) -> will jump into the pane containing the item
 
 
 
@@ -70,7 +66,7 @@
 		which can be used from there on
 
 		todo:
-			scroll to certain list item, done, but needs adjustments
+			scroll to certain list item
 			inertia
 */
 
@@ -121,8 +117,9 @@ function switcher(selector,opts){
 
 	this._opts = opts;
 
+
+
 	this._element.css({
-		position:'relative',
 		overflow:'hidden',
 		padding:'0px'
 	});
@@ -132,6 +129,7 @@ function switcher(selector,opts){
 	*/
 	this._panes = [];
 
+	this._addItemsToPane = opts.addToPane == undefined ? true : opts.addToPane;
 	this._touchesToMove = opts.touches || 1;
 	this._offset = 0;
 	this._keys = opts.useArrowKeys || true;
@@ -334,7 +332,9 @@ switcher.prototype = {
 		for (var i in panes){
 			var index = parseInt( i ) + this._offset - 2;
 			panes[i].attr('scroll-index', index);
-			panes[i].html(this._getListItem(index));
+			if (this._addItemsToPane){
+				panes[i].html(this._getListItem(index));
+			}
 			panes[i].attr('list-index', this._getListItemIndex(this._getListItem(index)));
 		}
 	},
@@ -387,8 +387,13 @@ switcher.prototype = {
 		var rp = this._getRightPane(),
 			lp = this._getLeftPane();
 
-		rp.attr('scroll-index', this._offset+2).html( this._getListItem(this._offset+2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset+2)));
-		lp.attr('scroll-index', this._offset-2).html( this._getListItem(this._offset-2)).attr('list-index', this._getListItemIndex( this._getListItem( this._offset-2)));
+		rp.attr('scroll-index', this._offset+2).attr('list-index', this._getListItemIndex( this._getListItem( this._offset+2)));
+		lp.attr('scroll-index', this._offset-2).attr('list-index', this._getListItemIndex( this._getListItem( this._offset-2)));
+
+		if (this._addItemsToPane){
+			rp.html( this._getListItem(this._offset+2));
+			lp.html( this._getListItem(this._offset-2));
+		}
 	},
 	_getListItem:function(index){
 		if (index >= this._items.length){
@@ -397,6 +402,15 @@ switcher.prototype = {
 			return this._getListItem(this._items.length + index);
 		} else {
 			return this._items[index];
+		}
+	},
+	_getListIndex:function(index){
+		if (index >= this._items.length){
+			return this._getListIndex( index - this._items.length);
+		}  else if (index < 0){								
+			return this._getListIndex(this._items.length + index);
+		} else {
+			return index;
 		}
 	},
 	_getListItemIndex:function(item){
@@ -419,8 +433,15 @@ switcher.prototype = {
 	_onchange:function(newPane){
 		if (this._opts.onchange){
 			var pane =  this._getCenterPane();
+
 			if (this._getIndex(pane) != this._lastChange){
-				this._opts.onchange.call(pane,newPane,this._getListItemIndex(this._getIndex(pane)));
+				this._opts.onchange.call(pane,{
+							current_pane:pane,
+							newpane:newPane,
+							current_index:this._getIndex(pane),
+							current_listitem:this._getListItem( this._getIndex(pane) ),
+							current_listindex:this._getListIndex( this._getIndex(pane) )
+						});
 				this._lastChange = this._getIndex(pane);
 			}
 		}
