@@ -129,7 +129,6 @@ function switcher(selector,opts){
 	*/
 	this._panes = [];
 
-	this._addItemsToPane = opts.addToPane == undefined ? true : opts.addToPane;
 	this._touchesToMove = opts.touches || 1;
 	this._offset = 0;
 	this._keys = opts.useArrowKeys || true;
@@ -168,16 +167,11 @@ function switcher(selector,opts){
 		this._element.append(e);
 	}
 
-	this._reset();
-	this._direction = '';
-	this._paneWidth = this._panes[2].outerWidth();
-	this._animating = false;
-	this._animation_wait = false;
-
-
 	// response to the window size change
 	$(window).resize(function(){
 		me._scrollTo( me._getCenterPane() );
+		me._checkPosition();
+
 	});
 
 	// touch event listeners
@@ -251,18 +245,30 @@ function switcher(selector,opts){
 			}
 		});
 	}
+
+	this._reset();
+	this._direction = '';
+	this._paneWidth = this._panes[2].outerWidth();
+
 }
 
 
 switcher.prototype = {	
+	setPaneWidth:function(w){
+		for (var i in this._panes){
+			this._panes[i].css('width',w);
+		}
+		this._checkPosition();
+	},
 	goto:function(index){
-		var diff = this._offset - index;
+		index = parseInt(index);
+		var diff = index - this._offset;
 		if (diff == -1){
 			this.prev();
 		} else if (diff == 1){
 			this.next();
 		} else if (diff!= 0){
-			this._offset = index;
+			this._offset =index;
 			this._reset();
 			this._onchange();
 		}
@@ -332,11 +338,10 @@ switcher.prototype = {
 		for (var i in panes){
 			var index = parseInt( i ) + this._offset - 2;
 			panes[i].attr('scroll-index', index);
-			if (this._addItemsToPane){
-				panes[i].html(this._getListItem(index));
-			}
+
+			panes[i].html(this._getListItem(index));
 			panes[i].attr('list-index', this._getListItemIndex(this._getListItem(index)));
-		}
+		}		
 	},
 	_getRightPane:function(){
 		return this._getPanesByPosition()[4];
@@ -390,10 +395,8 @@ switcher.prototype = {
 		rp.attr('scroll-index', this._offset+2).attr('list-index', this._getListItemIndex( this._getListItem( this._offset+2)));
 		lp.attr('scroll-index', this._offset-2).attr('list-index', this._getListItemIndex( this._getListItem( this._offset-2)));
 
-		if (this._addItemsToPane){
-			rp.html( this._getListItem(this._offset+2));
-			lp.html( this._getListItem(this._offset-2));
-		}
+		rp.html( this._getListItem(this._offset+2));
+		lp.html( this._getListItem(this._offset-2));
 	},
 	_getListItem:function(index){
 		if (index >= this._items.length){
@@ -478,5 +481,5 @@ switcher.prototype = {
 		if (this._opts.ondrag){
 			this._opts.ondrag(px);
 		}
-	}
+	},	
 }
